@@ -1,0 +1,42 @@
+# ───────────────────────────
+# Dependencies
+# ───────────────────────────
+backend/node_modules/
+frontend/node_modules/
+
+# ───────────────────────────
+# Environment variables
+# ───────────────────────────
+backend/.env
+backend/.env.local
+backend/.env.production
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# ───────────────────────────
+# Logs
+# ───────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ───────────────────────────
+# OS files
+# ───────────────────────────
+.DS_Store
+Thumbs.db
+
+# ───────────────────────────
+# IDE / Editor
+# ───────────────────────────
+.vscode/
+.idea/
+
+# ───────────────────────────
+# Build output
+# ───────────────────────────
+frontend/.expo/
+frontend/dist/
+frontend/build/
+backend/dist/

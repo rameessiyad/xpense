@@ -28,6 +28,7 @@ export interface Category {
   name: string;
   icon: string;
   type: "Expense" | "Income";
+  group: string;
   isDefault: boolean;
 }
 

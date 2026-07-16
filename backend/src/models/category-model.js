@@ -13,6 +13,10 @@ const categorySchema = new mongoose.Schema(
     icon: {
       type: String,
     },
+    group: {
+      type: String,
+      default: "Others",
+    },
     type: {
       type: String,
       enum: ["Expense", "Income"],

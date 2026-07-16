@@ -3,6 +3,7 @@ const User = require("../models/user-model");
 const asyncHandler = require("../utils/asynchandler");
 const AppError = require("../utils/appError");
 const bcrypt = require("bcrypt");
+const { seedDefaultCategories } = require("./category-controller");
 
 const generateToken = (userId) => {
   return jwt.sign(
@@ -73,6 +74,8 @@ const login = asyncHandler(async (req, res) => {
   //compare password
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new AppError("Invalid email or password", 401);
+
+  await seedDefaultCategories(user._id);
 
   const token = generateToken(user._id);
 

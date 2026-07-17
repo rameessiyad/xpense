@@ -5,16 +5,17 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   ScrollView,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { getCategories } from "../api/categoryApi";
 import { Category } from "../types";
+import { createTransaction } from "../api/transactionApi";
 
 const categoryColors: Record<string, string> = {
   Food: "#39FF14",
@@ -70,8 +71,14 @@ export default function AddExpenseScreen() {
 
     try {
       setLoading(true);
-      // transaction API call will go here
-      Alert.alert("Success", "Expense saved!");
+      await createTransaction({
+        categoryId: selectedCategory._id,
+        amount: Number(amount),
+        type,
+        note,
+        date: new Date().toISOString(),
+      });
+      Alert.alert("Success", `${type} saved!`);
       setAmount("");
       setNote("");
       setSelectedCategory(null);

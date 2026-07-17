@@ -15,7 +15,12 @@ export interface AuthResponse {
 export interface Transaction {
   _id: string;
   userId: string;
-  categoryId: string;
+  categoryId: {
+    _id: string;
+    name: string;
+    icon: string;
+    group: string;
+  };
   amount: number;
   type: "Expense" | "Income";
   note?: string;

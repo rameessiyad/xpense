@@ -17,5 +17,5 @@ export const createCategory = async (data: {
 };
 
 export const deleteCategory = async (id: string): Promise<void> => {
-  await api.delete(`/categories/${id}`);
+  await api.delete(`/category/${id}`);
 };

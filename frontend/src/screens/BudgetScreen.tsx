@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,200 +8,314 @@ import {
   TextInput,
   Alert,
   Modal,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-
-const categoryBudgets = [
-  { name: 'Food',       icon: 'restaurant-outline',     color: '#39FF14', limit: 3000, spent: 2400 },
-  { name: 'Bills',      icon: 'flash-outline',          color: '#85B7EB', limit: 2000, spent: 1800 },
-  { name: 'Travel',     icon: 'bus-outline',            color: '#F4C0D1', limit: 1500, spent: 1140 },
-  { name: 'Groceries',  icon: 'cart-outline',           color: '#FAC775', limit: 2000, spent: 400  },
-  { name: 'Recharges',  icon: 'phone-portrait-outline', color: '#B4A0F5', limit: 1000, spent: 600  },
-  { name: 'EMI',        icon: 'card-outline',           color: '#F0997B', limit: 1500, spent: 1500 },
-];
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import {
+  getBudgets,
+  createBudget,
+  updateBudget,
+  BudgetData,
+} from "../api/budgetApi";
 
 export default function BudgetScreen() {
-  const [monthlyLimit, setMonthlyLimit] = useState(10000);
-  const [monthlySpent] = useState(8240);
+  const [budgets, setBudgets] = useState<BudgetData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
-  const [newLimit, setNewLimit] = useState('');
+  const [editingBudget, setEditingBudget] = useState<BudgetData | null>(null);
+  const [newLimit, setNewLimit] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const monthlyRemaining = monthlyLimit - monthlySpent;
-  const monthlyProgress = (monthlySpent / monthlyLimit) * 100;
+  const overallBudget = budgets.find((b) => !b.categoryId);
+  const categoryBudgets = budgets.filter((b) => b.categoryId);
 
-  const getProgressColor = (spent: number, limit: number) => {
-    const pct = (spent / limit) * 100;
-    if (pct >= 100) return '#FF4C4C';
-    if (pct >= 90)  return '#FAC775';
-    return '#39FF14';
+  const fetchBudgets = async () => {
+    try {
+      setLoading(true);
+      const data = await getBudgets();
+      setBudgets(data);
+    } catch (error: any) {
+      Alert.alert("Error", error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getStatusLabel = (spent: number, limit: number) => {
-    const pct = (spent / limit) * 100;
-    if (pct >= 100) return { label: 'Exceeded', color: '#FF4C4C' };
-    if (pct >= 90)  return { label: 'Almost full', color: '#FAC775' };
-    if (pct >= 75)  return { label: 'High usage', color: '#FAC775' };
-    return { label: 'On track', color: '#39FF14' };
-  };
+  useFocusEffect(
+    useCallback(() => {
+      fetchBudgets();
+    }, []),
+  );
 
-  const openEdit = (name: string, currentLimit: number) => {
-    setEditingCategory(name);
-    setNewLimit(String(currentLimit));
+  const openEdit = (budget: BudgetData | null) => {
+    setEditingBudget(budget);
+    setNewLimit(budget ? String(budget.monthlyLimit) : "");
     setModalVisible(true);
   };
 
-  const handleSaveLimit = () => {
+  const handleSave = async () => {
     if (!newLimit || isNaN(Number(newLimit))) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      Alert.alert("Error", "Please enter a valid amount");
       return;
     }
-    // API call will go here
-    Alert.alert('Success', `Limit updated for ${editingCategory}`);
-    setModalVisible(false);
+
+    try {
+      setSaving(true);
+      if (editingBudget) {
+        await updateBudget(editingBudget._id, {
+          monthlyLimit: Number(newLimit),
+        });
+      } else {
+        await createBudget({ monthlyLimit: Number(newLimit) });
+      }
+      await fetchBudgets();
+      setModalVisible(false);
+    } catch (error: any) {
+      Alert.alert("Error", error.message);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const getProgressColor = (pct: number) => {
+    if (pct >= 100) return "#FF4C4C";
+    if (pct >= 90) return "#FAC775";
+    return "#39FF14";
+  };
+
+  const getStatusLabel = (pct: number) => {
+    if (pct >= 100) return { label: "Exceeded", color: "#FF4C4C" };
+    if (pct >= 90) return { label: "Almost full", color: "#FAC775" };
+    if (pct >= 75) return { label: "High usage", color: "#FAC775" };
+    return { label: "On track", color: "#39FF14" };
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#39FF14" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Budget</Text>
           <TouchableOpacity
             style={styles.editBtn}
-            onPress={() => openEdit('Monthly', monthlyLimit)}
+            onPress={() => openEdit(overallBudget ?? null)}
           >
-            <Ionicons name="pencil-outline" size={16} color="#39FF14" />
-            <Text style={styles.editBtnText}>Edit</Text>
+            <Ionicons
+              name={"pencil-outline" as any}
+              size={16}
+              color="#39FF14"
+            />
+            <Text style={styles.editBtnText}>
+              {overallBudget ? "Edit" : "Set limit"}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Overall monthly budget */}
-        <View style={styles.overallCard}>
-          <View style={styles.overallTop}>
-            <View>
-              <Text style={styles.overallLabel}>Monthly budget</Text>
-              <Text style={styles.overallMonth}>July 2026</Text>
-            </View>
-            <View style={styles.overallAmounts}>
-              <Text style={styles.overallSpent}>₹{monthlySpent.toLocaleString()}</Text>
-              <Text style={styles.overallLimit}> / ₹{monthlyLimit.toLocaleString()}</Text>
-            </View>
-          </View>
-
-          {/* Progress bar */}
-          <View style={styles.progressBg}>
-            <View style={[
-              styles.progressFill,
-              {
-                width: `${Math.min(monthlyProgress, 100)}%` as any,
-                backgroundColor: getProgressColor(monthlySpent, monthlyLimit),
-              }
-            ]} />
-          </View>
-
-          <View style={styles.overallBottom}>
-            <View style={styles.remainingRow}>
-              <Ionicons
-                name={monthlyRemaining <= 2000 ? 'warning-outline' : 'checkmark-circle-outline'}
-                size={14}
-                color={monthlyRemaining <= 2000 ? '#FAC775' : '#39FF14'}
-              />
-              <Text style={[
-                styles.remainingText,
-                { color: monthlyRemaining <= 2000 ? '#FAC775' : '#39FF14' }
-              ]}>
-                {monthlyRemaining <= 0
-                  ? 'Budget exceeded!'
-                  : `₹${monthlyRemaining.toLocaleString()} remaining`
-                }
-              </Text>
-            </View>
-            <Text style={styles.progressPct}>{Math.round(monthlyProgress)}%</Text>
-          </View>
-
-          {/* Notification thresholds */}
-          <View style={styles.thresholdRow}>
-            <Text style={styles.thresholdLabel}>Notify at:</Text>
-            {[75, 90, 100].map((t) => (
-              <View
-                key={t}
-                style={[
-                  styles.thresholdChip,
-                  monthlyProgress >= t && { backgroundColor: '#39FF14' }
-                ]}
-              >
-                <Text style={[
-                  styles.thresholdText,
-                  monthlyProgress >= t && { color: '#0D0D0D' }
-                ]}>
-                  {t}%
+        {/* Overall budget */}
+        {overallBudget ? (
+          <View style={styles.overallCard}>
+            <View style={styles.overallTop}>
+              <View>
+                <Text style={styles.overallLabel}>Monthly budget</Text>
+                <Text style={styles.overallMonth}>
+                  {new Date().toLocaleString("en-IN", {
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </Text>
               </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Category budgets */}
-        <Text style={styles.sectionTitle}>Category limits</Text>
-
-        {categoryBudgets.map((cat, i) => {
-          const pct = (cat.spent / cat.limit) * 100;
-          const status = getStatusLabel(cat.spent, cat.limit);
-          const progressColor = getProgressColor(cat.spent, cat.limit);
-
-          return (
-            <View key={i} style={styles.categoryCard}>
-              <View style={styles.categoryTop}>
-                <View style={styles.categoryLeft}>
-                  <View style={[styles.categoryIcon, { backgroundColor: cat.color + '22' }]}>
-                    <Ionicons name={cat.icon as any} size={18} color={cat.color} />
-                  </View>
-                  <View>
-                    <Text style={styles.categoryName}>{cat.name}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: status.color + '22' }]}>
-                      <Text style={[styles.statusText, { color: status.color }]}>
-                        {status.label}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  style={styles.categoryEditBtn}
-                  onPress={() => openEdit(cat.name, cat.limit)}
-                >
-                  <Ionicons name="pencil-outline" size={14} color="#8A8A8A" />
-                </TouchableOpacity>
+              <View style={styles.overallAmounts}>
+                <Text style={styles.overallSpent}>
+                  ₹{overallBudget.spent.toLocaleString()}
+                </Text>
+                <Text style={styles.overallLimit}>
+                  {" "}
+                  / ₹{overallBudget.monthlyLimit.toLocaleString()}
+                </Text>
               </View>
-
-              <View style={styles.categoryAmountRow}>
-                <Text style={styles.categorySpent}>₹{cat.spent.toLocaleString()}</Text>
-                <Text style={styles.categoryLimit}> / ₹{cat.limit.toLocaleString()}</Text>
-              </View>
-
-              <View style={styles.categoryProgressBg}>
-                <View style={[
-                  styles.categoryProgressFill,
+            </View>
+            <View style={styles.progressBg}>
+              <View
+                style={[
+                  styles.progressFill,
                   {
-                    width: `${Math.min(pct, 100)}%` as any,
-                    backgroundColor: progressColor,
+                    width: `${Math.min(overallBudget.percentage, 100)}%` as any,
+                    backgroundColor: getProgressColor(overallBudget.percentage),
+                  },
+                ]}
+              />
+            </View>
+            <View style={styles.overallBottom}>
+              <View style={styles.remainingRow}>
+                <Ionicons
+                  name={
+                    (overallBudget.remaining <= 2000
+                      ? "warning-outline"
+                      : "checkmark-circle-outline") as any
                   }
-                ]} />
+                  size={14}
+                  color={
+                    overallBudget.remaining <= 2000 ? "#FAC775" : "#39FF14"
+                  }
+                />
+                <Text
+                  style={[
+                    styles.remainingText,
+                    {
+                      color:
+                        overallBudget.remaining <= 0
+                          ? "#FF4C4C"
+                          : overallBudget.remaining <= 2000
+                            ? "#FAC775"
+                            : "#39FF14",
+                    },
+                  ]}
+                >
+                  {overallBudget.remaining <= 0
+                    ? "Budget exceeded!"
+                    : `₹${overallBudget.remaining.toLocaleString()} remaining`}
+                </Text>
               </View>
-
-              <Text style={styles.categoryPct}>
-                {Math.round(pct)}% used · ₹{(cat.limit - cat.spent).toLocaleString()} left
+              <Text style={styles.progressPct}>
+                {overallBudget.percentage}%
               </Text>
             </View>
-          );
-        })}
+            <View style={styles.thresholdRow}>
+              <Text style={styles.thresholdLabel}>Notify at:</Text>
+              {overallBudget.thresholds.map((t) => (
+                <View
+                  key={t}
+                  style={[
+                    styles.thresholdChip,
+                    overallBudget.percentage >= t && {
+                      backgroundColor: "#39FF14",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.thresholdText,
+                      overallBudget.percentage >= t && { color: "#0D0D0D" },
+                    ]}
+                  >
+                    {t}%
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.noBudgetBox}
+            onPress={() => openEdit(null)}
+          >
+            <Ionicons
+              name={"add-circle-outline" as any}
+              size={32}
+              color="#39FF14"
+            />
+            <Text style={styles.noBudgetText}>Set a monthly budget limit</Text>
+            <Text style={styles.noBudgetSub}>Tap to get started</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Category budgets */}
+        {categoryBudgets.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Category limits</Text>
+            {categoryBudgets.map((cat, i) => {
+              const status = getStatusLabel(cat.percentage);
+              return (
+                <View key={i} style={styles.categoryCard}>
+                  <View style={styles.categoryTop}>
+                    <View style={styles.categoryLeft}>
+                      <View
+                        style={[
+                          styles.categoryIcon,
+                          { backgroundColor: "#39FF14" + "22" },
+                        ]}
+                      >
+                        <Ionicons
+                          name={
+                            (cat.categoryId?.icon ??
+                              "ellipsis-horizontal-outline") as any
+                          }
+                          size={18}
+                          color="#39FF14"
+                        />
+                      </View>
+                      <View>
+                        <Text style={styles.categoryName}>
+                          {cat.categoryId?.name}
+                        </Text>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            { backgroundColor: status.color + "22" },
+                          ]}
+                        >
+                          <Text
+                            style={[styles.statusText, { color: status.color }]}
+                          >
+                            {status.label}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.categoryEditBtn}
+                      onPress={() => openEdit(cat)}
+                    >
+                      <Ionicons
+                        name={"pencil-outline" as any}
+                        size={14}
+                        color="#8A8A8A"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.categoryAmountRow}>
+                    <Text style={styles.categorySpent}>
+                      ₹{cat.spent.toLocaleString()}
+                    </Text>
+                    <Text style={styles.categoryLimit}>
+                      {" "}
+                      / ₹{cat.monthlyLimit.toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={styles.categoryProgressBg}>
+                    <View
+                      style={[
+                        styles.categoryProgressFill,
+                        {
+                          width: `${Math.min(cat.percentage, 100)}%` as any,
+                          backgroundColor: getProgressColor(cat.percentage),
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.categoryPct}>
+                    {cat.percentage}% used · ₹{cat.remaining.toLocaleString()}{" "}
+                    left
+                  </Text>
+                </View>
+              );
+            })}
+          </>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Edit limit modal */}
+      {/* Edit Modal */}
       <Modal
         visible={modalVisible}
         transparent
@@ -212,303 +326,237 @@ export default function BudgetScreen() {
           <View style={styles.modalBox}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Edit limit — {editingCategory}
+                {editingBudget ? "Edit limit" : "Set monthly limit"}
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close-outline" size={22} color="#8A8A8A" />
+                <Ionicons
+                  name={"close-outline" as any}
+                  size={22}
+                  color="#8A8A8A"
+                />
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.modalLabel}>New monthly limit (₹)</Text>
+            <Text style={styles.modalLabel}>Monthly limit (₹)</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="e.g. 5000"
+              placeholder="e.g. 10000"
               placeholderTextColor="#555"
               keyboardType="numeric"
               value={newLimit}
               onChangeText={setNewLimit}
               autoFocus
             />
-
-            <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSaveLimit}>
-              <Text style={styles.modalSaveBtnText}>Save limit</Text>
+            <TouchableOpacity
+              style={[styles.modalSaveBtn, saving && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#0D0D0D" />
+              ) : (
+                <Text style={styles.modalSaveBtnText}>Save limit</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  safeArea: { flex: 1, backgroundColor: "#0D0D0D" },
+  loadingContainer: {
     flex: 1,
-    backgroundColor: '#0D0D0D',
+    backgroundColor: "#0D0D0D",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-
-  // Header
+  container: { flex: 1, paddingHorizontal: 20 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingTop: 20,
     marginBottom: 20,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
+  headerTitle: { fontSize: 22, fontWeight: "700", color: "#FFFFFF" },
   editBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: "#1A1A1A",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 0.5,
-    borderColor: '#39FF14',
+    borderColor: "#39FF14",
   },
-  editBtnText: {
-    color: '#39FF14',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
-  // Overall card
+  editBtnText: { color: "#39FF14", fontSize: 13, fontWeight: "500" },
   overallCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: "#1A1A1A",
     borderRadius: 16,
     padding: 18,
     marginBottom: 28,
     borderWidth: 0.5,
-    borderColor: '#2A2A2A',
+    borderColor: "#2A2A2A",
   },
   overallTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 14,
   },
-  overallLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  overallMonth: {
-    fontSize: 12,
-    color: '#8A8A8A',
-    marginTop: 2,
-  },
-  overallAmounts: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  overallSpent: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#39FF14',
-  },
-  overallLimit: {
-    fontSize: 13,
-    color: '#8A8A8A',
-  },
+  overallLabel: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
+  overallMonth: { fontSize: 12, color: "#8A8A8A", marginTop: 2 },
+  overallAmounts: { flexDirection: "row", alignItems: "baseline" },
+  overallSpent: { fontSize: 18, fontWeight: "700", color: "#39FF14" },
+  overallLimit: { fontSize: 13, color: "#8A8A8A" },
   progressBg: {
     height: 8,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: "#2A2A2A",
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 10,
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
+  progressFill: { height: "100%", borderRadius: 4 },
   overallBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 14,
   },
-  remainingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  remainingText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  progressPct: {
-    fontSize: 13,
-    color: '#8A8A8A',
-  },
+  remainingRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  remainingText: { fontSize: 13, fontWeight: "500" },
+  progressPct: { fontSize: 13, color: "#8A8A8A" },
   thresholdRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     paddingTop: 14,
     borderTopWidth: 0.5,
-    borderTopColor: '#2A2A2A',
+    borderTopColor: "#2A2A2A",
   },
-  thresholdLabel: {
-    fontSize: 12,
-    color: '#8A8A8A',
-  },
+  thresholdLabel: { fontSize: 12, color: "#8A8A8A" },
   thresholdChip: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: "#2A2A2A",
   },
-  thresholdText: {
-    fontSize: 12,
-    color: '#8A8A8A',
-    fontWeight: '500',
+  thresholdText: { fontSize: 12, color: "#8A8A8A", fontWeight: "500" },
+  noBudgetBox: {
+    backgroundColor: "#1A1A1A",
+    borderRadius: 16,
+    padding: 32,
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 24,
+    borderWidth: 0.5,
+    borderColor: "#2A2A2A",
+    borderStyle: "dashed",
   },
-
-  // Section
+  noBudgetText: { fontSize: 15, color: "#FFFFFF", fontWeight: "600" },
+  noBudgetSub: { fontSize: 13, color: "#8A8A8A" },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginBottom: 14,
   },
-
-  // Category cards
   categoryCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: "#1A1A1A",
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
     borderWidth: 0.5,
-    borderColor: '#2A2A2A',
+    borderColor: "#2A2A2A",
   },
   categoryTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  categoryLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   categoryIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   categoryName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 20,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
+  statusText: { fontSize: 11, fontWeight: "500" },
   categoryEditBtn: {
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: '#2A2A2A',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#2A2A2A",
+    justifyContent: "center",
+    alignItems: "center",
   },
   categoryAmountRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    alignItems: "baseline",
     marginBottom: 8,
   },
-  categorySpent: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  categoryLimit: {
-    fontSize: 13,
-    color: '#8A8A8A',
-  },
+  categorySpent: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  categoryLimit: { fontSize: 13, color: "#8A8A8A" },
   categoryProgressBg: {
     height: 6,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: "#2A2A2A",
     borderRadius: 3,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 6,
   },
-  categoryProgressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  categoryPct: {
-    fontSize: 11,
-    color: '#8A8A8A',
-  },
-
-  // Modal
+  categoryProgressFill: { height: "100%", borderRadius: 3 },
+  categoryPct: { fontSize: 11, color: "#8A8A8A" },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
   },
   modalBox: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: "#1A1A1A",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 24,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
   },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  modalLabel: {
-    fontSize: 13,
-    color: '#8A8A8A',
-    marginBottom: 8,
-  },
+  modalTitle: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
+  modalLabel: { fontSize: 13, color: "#8A8A8A", marginBottom: 8 },
   modalInput: {
-    backgroundColor: '#0D0D0D',
+    backgroundColor: "#0D0D0D",
     borderWidth: 0.5,
-    borderColor: '#333',
+    borderColor: "#333",
     borderRadius: 10,
     padding: 14,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
     marginBottom: 20,
   },
   modalSaveBtn: {
-    backgroundColor: '#39FF14',
+    backgroundColor: "#39FF14",
     borderRadius: 10,
     padding: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  modalSaveBtnText: {
-    color: '#0D0D0D',
-    fontWeight: '700',
-    fontSize: 15,
-  },
+  modalSaveBtnText: { color: "#0D0D0D", fontWeight: "700", fontSize: 15 },
 });

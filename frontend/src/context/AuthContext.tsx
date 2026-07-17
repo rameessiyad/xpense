@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (token: string, user: User) => {
     await saveToken(token);
     setToken(token);
-    setUser(user);
+    setUser({ ...user, token });
   };
 
   const logout = async () => {

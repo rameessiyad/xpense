@@ -42,6 +42,8 @@ const registerUser = asyncHandler(async (req, res) => {
     currency,
   });
 
+  await seedDefaultCategories(user._id);
+
   const token = generateToken(user._id);
 
   res.status(201).json({
@@ -74,8 +76,6 @@ const login = asyncHandler(async (req, res) => {
   //compare password
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new AppError("Invalid email or password", 401);
-
-  await seedDefaultCategories(user._id);
 
   const token = generateToken(user._id);
 

@@ -1,7 +1,11 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Xpense",
+    "slug": "xpense",
+    "splash": {
+      "backgroundColor": "#0D0D0D",
+      "resizeMode": "contain"
+    },
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,6 +25,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-splash-screen"
+    ]
   }
 }

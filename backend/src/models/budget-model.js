@@ -10,7 +10,7 @@ const budgetSchema = new mongoose.Schema(
     categoryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
-      required: true,
+      default: null,
     },
     monthlyLimit: {
       type: Number,
